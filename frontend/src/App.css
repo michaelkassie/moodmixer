@@ -1,0 +1,193 @@
+@import url('https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap');
+
+body {
+  margin: 0;
+  background: linear-gradient(145deg, #fdfbfb, #ebedee);
+  min-height: 100vh;
+  font-family: 'Fredoka One', cursive;
+}
+
+.App {
+  text-align: center;
+  padding: 40px 20px;
+  animation: fadeIn 1s ease-in-out;
+}
+
+h1 {
+  font-size: 2.5rem;
+  color: #ff5e57;
+  margin-bottom: 30px;
+  text-shadow: 2px 2px #ffcdd2;
+}
+
+input {
+  padding: 12px;
+  font-size: 1rem;
+  border: 2px solid #ffb347;
+  border-radius: 12px;
+  width: 250px;
+  margin-top: 15px;
+  margin-right: 10px;
+  outline: none;
+  transition: transform 0.2s ease;
+}
+
+input:focus {
+  transform: scale(1.05);
+  border-color: #ff7043;
+}
+
+button {
+  padding: 12px 20px;
+  font-size: 1rem;
+  border: none;
+  border-radius: 12px;
+  background-color: #4fc3f7;
+  color: white;
+  cursor: pointer;
+  box-shadow: 0px 4px 0px #0288d1;
+  transition: all 0.2s ease-in-out;
+}
+
+button:hover {
+  background-color: #29b6f6;
+  transform: translateY(-3px);
+  box-shadow: 0px 6px 0px #0288d1;
+}
+
+button:active {
+  transform: scale(0.98);
+  box-shadow: 0px 2px 0px #0288d1;
+}
+
+.preset-moods {
+  margin-bottom: 20px;
+}
+
+.preset-moods button {
+  margin: 8px;
+}
+
+.song-list {
+  list-style: none;
+  padding: 0;
+  margin-top: 40px;
+  animation: fadeIn 0.8s ease;
+}
+
+.song-list li {
+  margin-bottom: 14px;
+  font-size: 1.1rem;
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.song-list li:hover {
+  transform: scale(1.05);
+  background-color: #ffe0b2;
+  padding: 5px 10px;
+  border-radius: 8px;
+}
+
+a {
+  text-decoration: none;
+  color: #ff5722;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.error {
+  color: #e53935;
+  margin-top: 20px;
+  font-size: 1rem;
+  animation: shake 0.3s ease-in-out;
+}
+
+/* Fade In Animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Shake Animation for errors */
+@keyframes shake {
+  0% {
+    transform: translateX(0px);
+  }
+
+  25% {
+    transform: translateX(-5px);
+  }
+
+  50% {
+    transform: translateX(5px);
+  }
+
+  75% {
+    transform: translateX(-3px);
+  }
+
+  100% {
+    transform: translateX(0px);
+  }
+}
+
+.history-view {
+  margin-top: 40px;
+  padding: 20px;
+  background-color: #f5f5f5;
+  border-radius: 16px;
+  animation: fadeIn 0.8s ease;
+}
+
+.history-entry {
+  margin-bottom: 2rem;
+  padding: 1rem 1.5rem;
+  border-radius: 12px;
+  background-color: #ffffff;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  text-align: left;
+}
+
+.history-entry h3 {
+  margin-bottom: 10px;
+  color: #333;
+  font-size: 1.2rem;
+}
+
+.history-entry ul {
+  padding-left: 20px;
+}
+
+.history-entry li {
+  margin-bottom: 6px;
+  font-size: 1rem;
+  color: #ff5722;
+}
+
+.history-entry a {
+  text-decoration: none;
+  color: #ff5722;
+  transition: all 0.2s ease;
+}
+
+.history-entry a:hover {
+  text-decoration: underline;
+  color: #e64a19;
+}
+
+.manual-mood {
+  margin-top: 25px;
+}
+
+.manual-mood button {
+  margin: 6px 10px 0 0; /* top, right, bottom, left */
+}
