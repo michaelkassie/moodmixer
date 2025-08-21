@@ -1,7 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const router = express.Router();
-const MoodEntry = require('../models/MoodEntry'); // ✅ Import model
+const MoodEntry = require('../models/MoodEntry'); 
 
 require('dotenv').config();
 

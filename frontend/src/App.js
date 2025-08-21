@@ -8,7 +8,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [history, setHistory] = useState([]);
-  const [view, setView] = useState('main'); // 'main' or 'history'
+  const [view, setView] = useState('main'); 
 
   const presetMoods = ['Happy', 'Sad', 'Angry', 'Relaxed', 'Tired', 'Focused'];
 
