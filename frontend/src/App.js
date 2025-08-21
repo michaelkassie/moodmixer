@@ -2,13 +2,20 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import './App.css';
 
+// Use Vercel env var in prod, fallback to localhost for local dev
+const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true,
+});
+
 function App() {
   const [mood, setMood] = useState('');
   const [songs, setSongs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [history, setHistory] = useState([]);
-  const [view, setView] = useState('main'); 
+  const [view, setView] = useState('main');
 
   const presetMoods = ['Happy', 'Sad', 'Angry', 'Relaxed', 'Tired', 'Focused'];
 
@@ -19,13 +26,14 @@ function App() {
     setSongs([]);
     setView('main');
     try {
-      const res = await axios.get(`http://localhost:5000/music/${moodToSearch.toLowerCase()}`);
+      const res = await api.get(`/music/${moodToSearch.toLowerCase()}`);
       setSongs(res.data);
     } catch (err) {
-      setError('Failed to load songs. Is the backend running?');
       console.error(err);
+      setError('Failed to load songs. Please try again.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const fetchHistory = async () => {
@@ -34,20 +42,23 @@ function App() {
     setSongs([]);
     setView('history');
     try {
-      const res = await axios.get('http://localhost:5000/music/history/all');
+      const res = await api.get('/music/history/all');
       setHistory(res.data);
     } catch (err) {
-      setError('Failed to load mood history');
+      console.error(err);
+      setError('Failed to load mood history.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
+
   const handleSongClick = async (song) => {
     try {
-      await axios.post('http://localhost:5000/music/track', {
+      await api.post('/music/track', {
         name: song.name,
         artist: song.artist,
         url: song.url,
-        mood: mood || 'unknown'
+        mood: mood || 'unknown',
       });
     } catch (err) {
       console.error('Failed to log clicked song:', err.message);
@@ -94,7 +105,6 @@ function App() {
               </a>
             </li>
           ))}
-
         </ul>
       )}
 
@@ -103,7 +113,9 @@ function App() {
           <h2>Past Mood Searches</h2>
           {history.map((entry, i) => (
             <div key={i} className="history-entry">
-              <h3>{entry.mood} — {new Date(entry.date).toLocaleString()}</h3>
+              <h3>
+                {entry.mood} — {new Date(entry.date).toLocaleString()}
+              </h3>
               <ul>
                 {entry.songs.map((song, j) => (
                   <li key={j}>
