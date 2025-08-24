@@ -23,8 +23,6 @@ Overview
 
 Once authorized, MoodMixer connects with Spotify to fetch music that matches the user’s chosen mood. The app also provides:
 
-*   A **Mood Journal** to track moods over time
-    
 *   A **History** view to revisit past moods and generated playlists
     
 
