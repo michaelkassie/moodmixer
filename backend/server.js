@@ -41,6 +41,9 @@ connectDB();
 
 // health check route (Render will ping this)
 app.get('/health', (_req, res) => res.send('ok'));
+// TEMP: prove /music base path is reachable from server.js
+app.get('/music/ping', (_req, res) => res.json({ ok: true, from: 'server.js' }));
+
 
 // existing routes
 app.use('/music', musicRoutes);

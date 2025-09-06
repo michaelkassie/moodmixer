@@ -11,9 +11,10 @@ const ClickedSong = require('../models/ClickedSong');
 const Song = require('../models/Song');
 const PlaylistRecord = require('../models/PlaylistRecord');
 
-// -----------------------------------------------------------------------------
-// Auth: Spotify client credentials
-// -----------------------------------------------------------------------------
+// ---------- Config ----------
+const ML_BASE = process.env.ML_BASE || process.env.FASTAPI_URL || 'http://localhost:8001';
+
+// ---------- Spotify auth (client credentials) ----------
 let token = null;
 let tokenExpiresAt = 0;
 
@@ -32,8 +33,7 @@ async function getSpotifyToken() {
     new URLSearchParams({ grant_type: 'client_credentials' }),
     {
       headers: {
-        Authorization:
-          'Basic ' + Buffer.from(`${clientId}:${clientSecret}`).toString('base64'),
+        Authorization: 'Basic ' + Buffer.from(`${clientId}:${clientSecret}`).toString('base64'),
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       timeout: 15000,
@@ -45,9 +45,7 @@ async function getSpotifyToken() {
   return token;
 }
 
-// -----------------------------------------------------------------------------
-// Helpers
-// -----------------------------------------------------------------------------
+// ---------- Helpers ----------
 function getUserId(req) {
   return (
     (req.user && (req.user._id || req.user.id)) ||
@@ -57,7 +55,7 @@ function getUserId(req) {
 }
 
 function toMinimalSongs(songs) {
-  // UI/analytics expect: { name, artist, url }
+  // UI expects: { name, artist, url }
   return songs.map((s) => ({
     name: s.name,
     artist: Array.isArray(s.artists) ? (s.artists[0] || '') : (s.artist || ''),
@@ -168,11 +166,12 @@ async function fetchSongsFromFirstGoodPlaylist(accessToken, query) {
   return [];
 }
 
-// -----------------------------------------------------------------------------
-// Routes
-// -----------------------------------------------------------------------------
+// ---------- Routes ----------
 
-// Keep this before param routes (not strictly necessary, but harmless)
+// Simple sanity route so curl /music/test works
+router.get('/test', (_req, res) => res.json({ ok: true, where: '/music/test' }));
+
+// Keep this before param routes (harmless)
 router.get('/history/all', async (req, res) => {
   try {
     const userId = getUserId(req);
@@ -200,7 +199,15 @@ router.post('/track', async (req, res) => {
   }
 });
 
-// Main: get playlist by mood
+// Alias: GET /music/:mood  -> /music/by-mood/:mood (keeps older calls working)
+router.get('/:mood', (req, res) => {
+  const mood = String(req.params.mood || '').trim();
+  if (!mood || mood === 'by-mood') return res.status(400).json({ error: 'Missing mood' });
+  const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+  return res.redirect(307, `/music/by-mood/${encodeURIComponent(mood)}${qs}`);
+});
+
+// Main: get playlist by mood (diagnostic-friendly)
 router.get('/by-mood/:mood', async (req, res) => {
   try {
     const moodMap = {
@@ -216,61 +223,122 @@ router.get('/by-mood/:mood', async (req, res) => {
     const inputMood = String(req.params.mood || '').toLowerCase().trim();
     if (!inputMood) return res.status(400).json({ error: 'Missing mood' });
 
-    const queries = [
-      ...(moodMap[inputMood] || [inputMood]),
-      inputMood, // explicit fallback
-      'chill',   // last-resort fallback
-    ];
+    const queries = [ ...(moodMap[inputMood] || [inputMood]), inputMood, 'chill' ];
 
-    const accessToken = await getSpotifyToken();
-
-    // Try queries until one yields tracks
-    let songs = [];
-    for (const q of queries) {
-      const s = await fetchSongsFromFirstGoodPlaylist(accessToken, q);
-      if (s.length) {
-        songs = s;
-        break;
+    // 1) Token
+    let accessToken;
+    try {
+      accessToken = await getSpotifyToken();
+      if (req.query.debug === '1') console.log('[DBG] got token?', !!accessToken);
+    } catch (e) {
+      console.error('[ERR] getSpotifyToken failed:', e.message, e.response?.data || '');
+      if (req.query.debug === '1') {
+        return res.status(502).json({ error: 'token_failed', message: e.message, data: e.response?.data || null });
       }
+      throw e;
     }
 
+    // 2) Playlists → songs
+    let songs = [];
+    for (const q of queries) {
+      try {
+        const s = await fetchSongsFromFirstGoodPlaylist(accessToken, q);
+        if (s.length) { songs = s; break; }
+      } catch (e) {
+        console.warn('[WARN] playlist fetch failed for query:', q, e.message);
+        if (req.query.debug === '1') console.log('[DBG] playlist error data:', e.response?.data || null);
+      }
+    }
     if (!songs.length) {
+      if (req.query.debug === '1') {
+        return res.status(404).json({ error: 'no_songs', message: 'No music found even after fallback' });
+      }
       return res.status(404).json({ error: 'No music found even after fallback' });
     }
 
-    const userId = getUserId(req);
-    const mappedSongs = toMinimalSongs(songs);
-
-    // Enrich/Upsert Songs + write records
+    // 3) Audio features once
+    let featuresById = {};
     try {
-      const featuresById = await fetchAudioFeaturesById(accessToken, songs.map((s) => s.id));
+      featuresById = await fetchAudioFeaturesById(accessToken, songs.map(s => s.id));
+    } catch (e) {
+      console.warn('[WARN] audio-features failed:', e.message);
+      if (req.query.debug === '1') console.log('[DBG] features error data:', e.response?.data || null);
+    }
+    const nonEmpty = Object.values(featuresById)
+      .filter(f => f && Object.keys(f).length)
+      .length;
+    console.log('[ML] features fetched:', nonEmpty, '/', songs.length);
+
+    // 4) Optional ML re-ranking
+    const useML = (req.query.ml || 'false') === 'true';
+    console.log('[ML] useML?', useML, 'mood=', inputMood, 'ML_BASE=', ML_BASE);
+    if (useML) {
+      try {
+        console.log('[ML] sending first 5 track IDs:', songs.slice(0,5).map(s => s.id));
+        const payload = {
+          mood: inputMood,
+          tracks: songs.map(s => ({ id: s.id, features: featuresById[s.id] || {} })),
+        };
+        const mlResp = await axios.post(`${ML_BASE}/predict`, payload, { timeout: 15000 });
+        const rankedIds = Array.isArray(mlResp.data)
+          ? mlResp.data
+          : (mlResp.data?.ids || (mlResp.data?.items || []).map(x => x.id) || []);
+        console.log('[ML] rankedIds length:', Array.isArray(rankedIds) ? rankedIds.length : 0,
+                    'sample:', Array.isArray(rankedIds) ? rankedIds.slice(0,5) : []);
+        if (rankedIds.length) {
+          const rank = new Map(rankedIds.map((id, i) => [id, i]));
+          songs.sort((a, b) => (rank.get(a.id) ?? 1e9) - (rank.get(b.id) ?? 1e9));
+        }
+      } catch (e) {
+        console.warn('[ML] re-rank failed; using baseline:', e.message);
+        if (req.query.debug === '1') console.log('[DBG] ml error data:', e.response?.data || null);
+      }
+    }
+
+    const userId = getUserId(req);
+
+    // 5) Persist (DB) + respond
+    try {
       await upsertSongs(songs, featuresById);
 
-      // Upsert a per-user playlist record for this mood (what analytics reads)
+      const songDocs = await Song.find(
+        { spotifyId: { $in: songs.map(s => s.id) } },
+        { _id: 1, spotifyId: 1 }
+      );
+      const idMap = new Map(songDocs.map(d => [d.spotifyId, d._id]));
+      const tracks = songs.map(s => idMap.get(s.id)).filter(Boolean).map(_id => ({ songId: _id }));
+
+      const minimal = toMinimalSongs(songs);
+
       await PlaylistRecord.findOneAndUpdate(
         { userId, mood: inputMood },
-        { $set: { songs: mappedSongs, date: new Date() } },
+        { $set: { tracks, songs: minimal, date: new Date() } },
         { upsert: true, new: true }
       );
 
-      // Also log a per-request mood history row
-      await MoodEntry.create({
-        userId,
-        mood: inputMood,
-        songs: mappedSongs,
-        date: new Date(),
-      });
-    } catch (dbErr) {
-      console.error('DB save error:', dbErr.message);
-      // do not fail the request; still return songs to the client
-    }
+      await MoodEntry.create({ userId, mood: inputMood, songs: minimal, date: new Date() });
 
-    // Respond in the simple shape the UI expects
-    res.json(mappedSongs);
+      if (req.query.debug === '1') return res.json(songs); // raw with ids for order diff
+      return res.json(minimal);
+    } catch (dbErr) {
+      console.error('[ERR] DB write failed:', dbErr.message);
+      if (req.query.debug === '1') {
+        return res.status(500).json({ error: 'db_failed', message: dbErr.message });
+      }
+      // still return usable data to client
+      return res.json(toMinimalSongs(songs));
+    }
   } catch (error) {
     console.error('Error fetching music:', error.message);
     console.error('Full error:', error.response?.data || error);
-    res.status(500).json({ error: 'Failed to fetch music' });
+    if (req.query.debug === '1') {
+      return res.status(500).json({
+        error: 'fetch_failed',
+        message: error.message,
+        data: error.response?.data || null
+      });
+    }
+    return res.status(500).json({ error: 'Failed to fetch music' });
   }
 });
 
