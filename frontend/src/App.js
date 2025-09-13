@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import './App.css';
 
-// Use Vercel env var in prod, fallback to localhost for local dev
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 const api = axios.create({
   baseURL: API_BASE,
