@@ -1,26 +1,26 @@
-// server.js
+
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const connectDB = require('./db');
 
-// existing routes
+
 const musicRoutes = require('./routes/music');
 
 // NEW routes (add these files if you haven’t yet)
-const aiRoutes = require('./routes/ai');             // POST /api/ai/infer-mood
-const recRoutes = require('./routes/recs');          // GET  /api/recs/personalized
-const analyticsRoutes = require('./routes/analytics'); // GET  /api/analytics/overview
-//const devRoutes = require('./routes/dev');           // POST /api/dev/seed-basic (temporary)
+const aiRoutes = require('./routes/ai');             
+const recRoutes = require('./routes/recs');          
+const analyticsRoutes = require('./routes/analytics'); 
+          
 
-dotenv.config(); // load .env file
+dotenv.config(); 
 
 const app = express();
 
 // Allow requests from your Vercel frontend + local dev
 const allowedOrigins = [
-  'http://localhost:5173',            // dev frontend (Vite default)
-  process.env.FRONTEND_URL || '',     // production frontend on Vercel
+  'http://localhost:5173',            
+  process.env.FRONTEND_URL || '',     
 ];
 
 app.use(cors({
@@ -49,10 +49,10 @@ app.get('/music/ping', (_req, res) => res.json({ ok: true, from: 'server.js' }))
 app.use('/music', musicRoutes);
 
 // NEW: DS/ML feature routes
-app.use('/api/ai', aiRoutes);             // -> Python /sentiment
-app.use('/api/recs', recRoutes);          // -> Python /recommend
+app.use('/api/ai', aiRoutes);             
+app.use('/api/recs', recRoutes);          
 app.use('/api/analytics', analyticsRoutes);
-//app.use('/api/dev', devRoutes);           // temporary seeding helper
+//app.use('/api/dev', devRoutes);           
 
 // basic error handler
 app.use((err, _req, res, _next) => {
